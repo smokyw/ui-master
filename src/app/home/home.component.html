@@ -1,0 +1,15 @@
+<div fxLayout="column" fxLayout.lt-md="column" fxLayoutGap="2%" fxLayoutAlign="center center">
+  <h1>Welcome to Santa Swap</h1>
+  <img src="/assets/santa.png" />
+  <button mat-button (click)="auth.login()" *ngIf="!(auth.isLoggedIn | async)">LOGIN</button>
+  <span>
+    <button mat-button routerLink="/create-or-join" *ngIf="(auth.isLoggedIn | async)">
+      <mat-icon>create</mat-icon>
+      <span>Create or join groups</span>
+    </button>
+    <button mat-button routerLink="/groups" *ngIf="(auth.isLoggedIn | async)">
+      <mat-icon>group</mat-icon>
+      <span>View your groups</span>
+    </button></span
+  >
+</div>

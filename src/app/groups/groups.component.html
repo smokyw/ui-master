@@ -1,0 +1,5 @@
+<div fxLayout="row wrap" fxLayout.lt-md="column" fxLayoutGap="2% grid" fxLayoutAlign="center center">
+  <app-group-card *ngFor="let group of groups" [group]="group"></app-group-card>
+  <app-create-card *ngIf="groups.length === 0"></app-create-card>
+  <app-join-card *ngIf="groups.length === 0"></app-join-card>
+</div>

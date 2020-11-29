@@ -1,0 +1,45 @@
+<mat-toolbar class="toolbar">
+  <button mat-icon-button [matMenuTriggerFor]="menu"><mat-icon>more_vert</mat-icon></button>
+  <button mat-icon-button routerLink="/">SANTA SWAP</button> <span class="spacer"></span>
+  <mat-icon>ac_unit</mat-icon>
+</mat-toolbar>
+<mat-progress-bar
+  [mode]="(isInProgress | async) ? 'indeterminate' : 'determinate'"
+  value="0"
+  class="spinner"
+></mat-progress-bar>
+
+<mat-menu #menu="matMenu">
+  <button mat-menu-item routerLink="/create-or-join" *ngIf="(auth.isLoggedIn | async)">
+    <mat-icon>create</mat-icon>
+    <span>Create or join group</span>
+  </button>
+  <button mat-menu-item routerLink="/groups" *ngIf="(auth.isLoggedIn | async)">
+    <mat-icon>group</mat-icon>
+    <span>View your groups</span>
+  </button>
+  <button mat-menu-item (click)="theme.enableDarkTheme()" *ngIf="!(isDarkTheme | async)">
+    <mat-icon>brightness_3</mat-icon>
+    <span>Switch to dark theme</span>
+  </button>
+  <button mat-menu-item (click)="theme.enableLightTheme()" *ngIf="(isDarkTheme | async)">
+    <mat-icon>brightness_5</mat-icon>
+    <span>Switch to light theme</span>
+  </button>
+  <button mat-menu-item (click)="auth.logout()" *ngIf="(auth.isLoggedIn | async)">
+    <mat-icon>exit_to_app</mat-icon>
+    <span>Logout</span>
+  </button>
+  <button mat-menu-item (click)="auth.login()" *ngIf="!(auth.isLoggedIn | async)">
+    <mat-icon>fingerprint</mat-icon>
+    <span>Login</span>
+  </button>
+  <!-- <button mat-menu-item (click)="enableSpinner()">
+    <mat-icon>code</mat-icon>
+    <span>Enable spinner</span>
+  </button>
+  <button mat-menu-item (click)="disableSpinner()">
+    <mat-icon>code</mat-icon>
+    <span>Disable spinner</span>
+  </button> -->
+</mat-menu>

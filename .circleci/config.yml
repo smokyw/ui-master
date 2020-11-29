@@ -1,0 +1,182 @@
+# Note: YAML anchors allow an object to be re-used, reducing duplication. The ampersand
+# declares an alias for an object, then later the `<<: *alias` syntax dereferences it.
+#
+# See http://blog.daemonl.com/2016/02/yaml.html and
+# https://medium.com/@kinghuang/docker-compose-anchors-aliases-extensions-a1e4105d70bd
+# for more information about how to use anchors.
+#
+# To validate changes use an online parser, eg. http://yaml-online-parser.appspot.com/
+anchors:
+  node-container-config: &node-container-config
+    docker:
+      - image: circleci/node:10-browsers
+        environment:
+          TERM: dumb
+
+  python-container-config: &python-container-config
+    docker:
+      - image: circleci/python:3.7.1
+        environment:
+          TERM: dumb
+
+  cache-dependencies: &cache-dependencies
+    save_cache:
+      key: dependency-cache-{{ checksum "package.json" }}
+      paths:
+        - node_modules
+
+  load-dependency-cache: &load-dependency-cache
+    restore_cache:
+      key: dependency-cache-{{ checksum "package.json" }}
+
+  cache-build: &cache-build
+    save_cache:
+      key: build-cache-{{ .Branch }}-{{ .Revision }}
+      paths:
+        - dist
+
+  load-build-cache: &load-build-cache
+    restore_cache:
+      key: build-cache-{{ .Branch }}-{{ .Revision }}
+
+  configure-aws-access: &configure-aws-access
+    run:
+      name: Configure AWS access
+      command: |
+        mkdir -p ~/.aws
+
+        cat > ~/.aws/credentials << EOL
+        [default]
+        aws_access_key_id = $AWS_ACCESS_KEY
+        aws_secret_access_key = $AWS_SECRET_ACCESS_KEY
+        EOL
+
+  build-site-infrastructure: &build-site-infrastructure
+    <<: *node-container-config
+    steps:
+      - checkout
+      - *configure-aws-access
+      - run:
+          name: Install infrastructure dependencies
+          command: cd infrastructure && npm i
+      - run:
+          name: Build site infrastructure
+          command: |
+            [[ ! -z "$STAGE" ]] || STAGE=$CIRCLE_BRANCH
+            echo Building site infrastructure for stage $STAGE
+            cd infrastructure && npm run deploy -- --stage $STAGE
+
+  deploy-site: &deploy-site
+    <<: *python-container-config
+    steps:
+      - checkout
+      - *load-dependency-cache
+      - *load-build-cache
+      - *configure-aws-access
+      - run:
+          name: Install awscli
+          command: sudo pip install awscli
+      - run:
+          name: Deploy to S3
+          command: |
+            [[ ! -z "$STAGE" ]] || STAGE=$CIRCLE_BRANCH
+            echo Deploying site for stage $STAGE
+            BUCKET=$STAGE.$DOMAIN
+            aws s3 sync dist s3://$BUCKET/ --delete --acl public-read
+
+  branch-only: &branch-only
+    filters:
+      branches:
+        ignore: master
+
+  prod-only: &prod-only
+    filters:
+      branches:
+        only: master
+
+  prod-config: &prod-config
+    environment:
+      - STAGE: prod
+
+## Circle CI configuration, see https://circleci.com/docs/2.0/configuration-reference/
+version: 2
+jobs:
+  install-dependencies:
+    <<: *node-container-config
+    steps:
+      - checkout
+      - *load-dependency-cache
+      - run:
+          name: Install dependencies
+          command: npm i
+      - *cache-dependencies
+
+  test-site:
+    <<: *node-container-config
+    steps:
+      - checkout
+      - *load-dependency-cache
+      - run:
+          name: Rebuild node-sass
+          command: npm rebuild node-sass
+      - run:
+          name: Run tests
+          command: npm run test:ci
+
+  build-site:
+    <<: *node-container-config
+    steps:
+      - checkout
+      - *load-dependency-cache
+      - run:
+          name: Build site
+          command: npm run build:ci
+      - *cache-build
+
+  build-site-infrastructure-prod:
+    <<: *build-site-infrastructure
+    <<: *prod-config
+
+  build-site-infrastructure-branch:
+    <<: *build-site-infrastructure
+
+  deploy-site-prod:
+    <<: *deploy-site
+    <<: *prod-config
+
+  deploy-site-branch:
+    <<: *deploy-site
+
+workflows:
+  version: 2
+  pipeline:
+    jobs:
+      - install-dependencies
+      - test-site:
+          requires:
+            - install-dependencies
+      - build-site:
+          requires:
+            - test-site
+
+      - build-site-infrastructure-branch:
+          <<: *branch-only
+          context: santaswap-aws
+          requires:
+            - build-site
+      - deploy-site-branch:
+          <<: *branch-only
+          context: santaswap-aws
+          requires:
+            - build-site-infrastructure-branch
+
+      - build-site-infrastructure-prod:
+          <<: *prod-only
+          context: santaswap-aws
+          requires:
+            - build-site
+      - deploy-site-prod:
+          <<: *prod-only
+          context: santaswap-aws
+          requires:
+            - build-site-infrastructure-prod
